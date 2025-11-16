@@ -1,0 +1,32 @@
+# 認証情報ファイル（絶対にGitHubにプッシュしない）
+credentials.json
+list-create-tool-*.json
+*.json
+
+# Jupyter notebooks（認証情報が含まれる可能性があるため除外）
+*.ipynb
+
+# Pythonキャッシュ
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 環境
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
