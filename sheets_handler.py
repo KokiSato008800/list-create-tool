@@ -1,10 +1,7 @@
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 import pandas as pd
 from datetime import datetime
-import tempfile
-import json
-import os
 
 class SheetsHandler:
     """Google Sheets操作クラス"""
@@ -25,17 +22,12 @@ class SheetsHandler:
                 'https://www.googleapis.com/auth/drive'
             ]
 
-            # 一時ファイルを作成
-            temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json')
-            json.dump(self.credentials_json, temp_file)
-            temp_file.close()
-
-            try:
-                creds = ServiceAccountCredentials.from_json_keyfile_name(temp_file.name, scope)
-                self.client = gspread.authorize(creds)
-            finally:
-                # 一時ファイルを削除
-                os.unlink(temp_file.name)
+            # google-auth を使用
+            creds = Credentials.from_service_account_info(
+                self.credentials_json,
+                scopes=scope
+            )
+            self.client = gspread.authorize(creds)
 
         return self.client
 
