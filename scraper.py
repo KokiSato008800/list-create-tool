@@ -2,6 +2,9 @@ from playwright.async_api import async_playwright
 import asyncio
 import random
 import re
+import os
+import subprocess
+import sys
 
 class GoogleMapsScraper:
     """Googleマップスクレイピングクラス（安定性最優先）"""
@@ -193,8 +196,29 @@ class GoogleMapsScraper:
 
         return None
 
+    @staticmethod
+    def ensure_playwright_browsers():
+        """Playwrightブラウザがインストールされているか確認し、なければインストール"""
+        try:
+            # chromium_pathが存在するか確認
+            result = subprocess.run(
+                [sys.executable, "-m", "playwright", "install", "chromium"],
+                capture_output=True,
+                text=True,
+                timeout=300  # 5分のタイムアウト
+            )
+            if result.returncode != 0:
+                print(f"Warning: Playwright install returned code {result.returncode}")
+                print(f"stdout: {result.stdout}")
+                print(f"stderr: {result.stderr}")
+        except Exception as e:
+            print(f"Warning: Could not install Playwright browsers: {e}")
+
     async def scrape_google_maps(self, keyword, start_rank=None, end_rank=None, log_callback=None):
         """Googleマップから店舗情報を取得"""
+        # Playwrightブラウザを確保
+        self.ensure_playwright_browsers()
+
         if start_rank is None:
             start_rank = self.start_rank
         if end_rank is None:
