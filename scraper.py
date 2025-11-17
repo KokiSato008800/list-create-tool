@@ -93,33 +93,79 @@ class GoogleMapsScraper:
                 await place_element.click(timeout=self.TIMEOUT_CLICK)
                 await self.random_wait()
 
-                # 店舗名（必須）
+                # ページ読み込み待機（重要）
+                await page.wait_for_load_state('networkidle', timeout=15000)
+                await asyncio.sleep(2)  # 追加の待機
+
+                # 店舗名（必須）- 複数の方法で取得を試行
+                name = None
+
+                # 方法1: URLから抽出（最も堅牢）
                 try:
-                    # Google Mapsの店舗名は h1 タグにある
-                    # 複数の h1 がある場合があるので、より具体的なセレクタを使用
-                    name_element = await page.wait_for_selector('div[role="main"] h1', timeout=self.TIMEOUT_ELEMENT)
-                    name = await name_element.inner_text()
-                    name = name.strip()  # 前後の空白を削除
-                except:
-                    # フォールバック: h1 タグを直接取得
+                    current_url = page.url
+                    import urllib.parse
+                    # URLパターン: https://www.google.com/maps/place/店舗名/...
+                    if '/place/' in current_url:
+                        place_match = re.search(r'/place/([^/]+)', current_url)
+                        if place_match:
+                            url_name = urllib.parse.unquote(place_match.group(1).replace('+', ' '))
+                            if url_name and url_name != "結果" and url_name != "Results":
+                                name = url_name
+                                if log_callback:
+                                    log_callback(f"  📍 URLから店舗名取得: {name}")
+                except Exception as e:
+                    if log_callback:
+                        log_callback(f"  ⚠️ URL抽出エラー: {e}")
+
+                # 方法2: 複数のCSSセレクタで取得
+                if not name:
+                    selectors = [
+                        'h1.DUwDvf.fontHeadlineLarge',  # 最新のセレクタ
+                        '.x3AX1-LfntMc-header-title-title span',
+                        'h1.DUwDvf',
+                        '.qBF1Pd.fontHeadlineSmall',
+                        '.qBF1Pd',
+                        'div[role="main"] h1',
+                        '#pane h1',
+                        'h1'  # 最終手段
+                    ]
+
+                    for selector in selectors:
+                        try:
+                            name_element = await page.wait_for_selector(selector, timeout=3000, state='visible')
+                            if name_element:
+                                text = await name_element.inner_text()
+                                text = text.strip()
+                                # 無効なテキストをフィルタリング
+                                if text and text not in ["結果", "Results", "Google マップ", "Google Maps"]:
+                                    name = text
+                                    if log_callback:
+                                        log_callback(f"  📍 セレクタから取得: {selector} -> {name}")
+                                    break
+                        except:
+                            continue
+
+                # 方法3: すべてのh1を走査（最終手段）
+                if not name:
                     try:
                         name_elements = await page.query_selector_all('h1')
-                        name = ""
                         for elem in name_elements:
                             text = await elem.inner_text()
                             text = text.strip()
-                            # 「結果」や空文字列ではないものを店舗名とする
-                            if text and text != "結果" and text != "Results":
+                            if text and text not in ["結果", "Results", "Google マップ", "Google Maps", ""]:
                                 name = text
+                                if log_callback:
+                                    log_callback(f"  📍 h1走査から取得: {name}")
                                 break
                     except:
-                        name = ""
+                        pass
 
-                if not name or name == "結果" or name == "Results":  # 店舗名がない、または「結果」の場合はスキップ
+                # 取得失敗時のリトライ
+                if not name:
                     if log_callback:
-                        log_callback(f"  ⚠️ ランク{rank}: 店舗名取得失敗（取得値: '{name}'）")
+                        log_callback(f"  ⚠️ ランク{rank}: 店舗名取得失敗（リトライ {attempt + 1}/{max_retries}）")
                     if attempt < max_retries - 1:
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(3)
                         continue
                     return None
 
