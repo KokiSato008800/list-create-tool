@@ -93,9 +93,19 @@ class GoogleMapsScraper:
                 await place_element.click(timeout=self.TIMEOUT_CLICK)
                 await self.random_wait()
 
-                # ページ読み込み待機（重要）
-                await page.wait_for_load_state('networkidle', timeout=15000)
-                await asyncio.sleep(2)  # 追加の待機
+                # ページ読み込み待機（networkidleは使わない - タイムアウトしやすいため）
+                # 代わりに固定時間待機 + 特定要素の出現を待つ
+                await asyncio.sleep(3)  # 初期レンダリング待機
+
+                # h1タグが出現するまで待機（最大10秒）
+                try:
+                    await page.wait_for_selector('h1', timeout=10000, state='attached')
+                except:
+                    # h1が見つからない場合でも処理を続行
+                    if log_callback:
+                        log_callback(f"  ⚠️ h1要素の待機タイムアウト、処理を続行します")
+
+                await asyncio.sleep(2)  # 追加の安全待機
 
                 # 店舗名（必須）- 複数の方法で取得を試行
                 name = None
