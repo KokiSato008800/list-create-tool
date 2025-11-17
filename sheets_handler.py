@@ -6,12 +6,14 @@ from datetime import datetime
 class SheetsHandler:
     """Google Sheets操作クラス"""
 
-    def __init__(self, credentials_json):
+    def __init__(self, credentials_json, owner_email=None):
         """
         Args:
             credentials_json (dict): サービスアカウントの認証情報（JSON形式）
+            owner_email (str, optional): スプレッドシートの所有者に設定するメールアドレス
         """
         self.credentials_json = credentials_json
+        self.owner_email = owner_email
         self.client = None
 
     def authenticate(self):
@@ -95,11 +97,25 @@ class SheetsHandler:
         # スプレッドシートに書き込み
         worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 
-        # 共有設定（誰でも閲覧可能）
+        # 共有設定
         try:
-            spreadsheet.share('', perm_type='anyone', role='reader')
-        except:
+            # オーナーメールアドレスが指定されている場合は、そのユーザーに所有権を譲渡
+            if self.owner_email:
+                # まず編集者として追加
+                spreadsheet.share(self.owner_email, perm_type='user', role='writer', notify=True,
+                                 email_message='店舗リストの取得が完了しました。スプレッドシートをご確認ください。')
+                # 所有権を譲渡（これによりサービスアカウントの容量を使わない）
+                try:
+                    spreadsheet.transfer_ownership(self.owner_email)
+                except:
+                    # 所有権譲渡に失敗した場合でも、編集者権限は付与されている
+                    pass
+            else:
+                # オーナーが指定されていない場合は誰でも閲覧可能に設定
+                spreadsheet.share('', perm_type='anyone', role='reader')
+        except Exception as e:
             # 共有設定に失敗しても処理を続行
+            print(f"Warning: Failed to share spreadsheet: {e}")
             pass
 
         return spreadsheet.id

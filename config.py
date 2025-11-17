@@ -29,6 +29,19 @@ def get_credentials():
         "ローカルの場合: credentials.json ファイルを作成してください"
     )
 
+def get_owner_email():
+    """オーナーのメールアドレスを取得"""
+    # Streamlit Secretsから取得
+    if hasattr(st, 'secrets') and 'owner_email' in st.secrets:
+        return st.secrets['owner_email']
+
+    # 環境変数から取得
+    if 'OWNER_EMAIL' in os.environ:
+        return os.environ['OWNER_EMAIL']
+
+    # デフォルト値（ローカル開発用）
+    return None
+
 # デフォルト設定
 DEFAULT_START_RANK = 41
 DEFAULT_END_RANK = 200
