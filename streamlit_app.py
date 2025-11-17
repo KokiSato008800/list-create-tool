@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 from scraper import GoogleMapsScraper
 from sheets_handler import SheetsHandler
-from config import get_credentials, get_owner_email, get_target_folder_id
+from config import get_credentials, get_owner_email, get_target_folder_id, get_input_sheet_url
 
 # ページ設定
 st.set_page_config(
@@ -20,51 +20,20 @@ st.markdown("---")
 # 説明
 st.markdown("""
 ### 使い方
-1. 入力用スプレッドシートのURLを貼り付けてください
-2. 取得範囲を設定してください（デフォルト: 41位〜200位）
-3. 「データ取得開始」ボタンをクリックしてください
-4. 処理完了後、新しいスプレッドシートにデータが保存されます
+1. 「データ取得開始」ボタンをクリックしてください
+2. 処理完了後、新しいスプレッドシートにデータが保存されます
 
 **⏱️ 予想実行時間**: 1キーワードあたり18〜20分
+
+**📝 設定について**:
+- 入力用スプレッドシート、取得範囲、保存先フォルダは全て設定済みです
+- 入力用スプレッドシートで検索キーワードと取得範囲をカスタマイズできます
 """)
 
 st.markdown("---")
 
-# 入力フォーム
-col1, col2 = st.columns(2)
-
-with col1:
-    sheet_url = st.text_input(
-        "📊 入力用スプレッドシートURL",
-        value="https://docs.google.com/spreadsheets/d/13zuvTUTv3wgBcRVeko4CXp4u6WaChRfcQkEPrF92Vb8/edit?gid=0#gid=0",
-        help="検索キーワード（エリア・業種）が記載されたスプレッドシートのURL"
-    )
-
-with col2:
-    st.write("")  # スペース調整
-
-col3, col4 = st.columns(2)
-
-with col3:
-    start_rank = st.number_input(
-        "🎯 取得開始順位",
-        min_value=1,
-        max_value=500,
-        value=41,
-        help="この順位から取得を開始します"
-    )
-
-with col4:
-    end_rank = st.number_input(
-        "🎯 取得終了順位",
-        min_value=1,
-        max_value=500,
-        value=200,
-        help="この順位まで取得します"
-    )
-
-# 詳細設定（折りたたみ）
-with st.expander("⚙️ 詳細設定"):
+# 詳細設定（折りたたみ）- 開発者向け
+with st.expander("⚙️ 詳細設定（通常は変更不要）"):
     col5, col6 = st.columns(2)
 
     with col5:
@@ -85,93 +54,91 @@ st.markdown("---")
 
 # 実行ボタン
 if st.button("🚀 データ取得開始", type="primary", use_container_width=True):
+    # プログレス表示用のコンテナ
+    progress_container = st.container()
+    log_container = st.container()
+    stats_container = st.container()
 
-    # 入力チェック
-    if not sheet_url:
-        st.error("❌ スプレッドシートURLを入力してください")
-    elif start_rank >= end_rank:
-        st.error("❌ 開始順位は終了順位より小さい値にしてください")
-    else:
-        # プログレス表示用のコンテナ
-        progress_container = st.container()
-        log_container = st.container()
-        stats_container = st.container()
+    with progress_container:
+        st.info("🔄 処理を開始します...")
+        overall_progress = st.progress(0)
+        current_task = st.empty()
 
-        with progress_container:
-            st.info("🔄 処理を開始します...")
-            overall_progress = st.progress(0)
-            current_task = st.empty()
+    with log_container:
+        st.subheader("📋 処理ログ")
+        log_area = st.empty()
 
-        with log_container:
-            st.subheader("📋 処理ログ")
-            log_area = st.empty()
+    logs = []
+    all_results = []
 
-        logs = []
-        all_results = []
+    try:
+        # 設定を取得
+        sheet_url = get_input_sheet_url()
+        credentials = get_credentials()
+        owner_email = get_owner_email()
+        target_folder_id = get_target_folder_id()
 
-        try:
-            # Google Sheets接続
-            logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] Google Sheetsに接続中...")
-            log_area.text_area("ログ", "\n".join(logs), height=300)
+        # Google Sheets接続
+        logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] Google Sheetsに接続中...")
+        log_area.text_area("ログ", "\n".join(logs), height=300)
 
-            # 認証情報を取得
-            credentials = get_credentials()
-            owner_email = get_owner_email()
-            target_folder_id = get_target_folder_id()
-            sheets = SheetsHandler(credentials, owner_email=owner_email, target_folder_id=target_folder_id)
-            keywords_data = sheets.get_search_keywords(sheet_url)
+        sheets = SheetsHandler(credentials, owner_email=owner_email, target_folder_id=target_folder_id)
+        keywords_data = sheets.get_search_keywords(sheet_url)
 
-            total_keywords = len(keywords_data)
-            logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ {total_keywords}件の検索キーワードを読み込みました")
-            log_area.text_area("ログ", "\n".join(logs), height=300)
+        total_keywords = len(keywords_data)
+        logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ {total_keywords}件の検索キーワードを読み込みました")
+        log_area.text_area("ログ", "\n".join(logs), height=300)
+
+        # デフォルト設定を使用（スプレッドシート側で個別に指定可能）
+        from config import DEFAULT_START_RANK, DEFAULT_END_RANK, DEFAULT_MIN_WAIT, DEFAULT_MAX_WAIT
+
+        # スクレイピング実行
+        scraper = GoogleMapsScraper(
+            start_rank=DEFAULT_START_RANK,
+            end_rank=DEFAULT_END_RANK,
+            min_wait=min_wait,
+            max_wait=max_wait
+        )
+
+        for idx, row in enumerate(keywords_data, 1):
+            area = row.get('エリア', '')
+            category = row.get('業種', '')
+            keyword = f"{area} {category}"
+
+            # カスタム範囲があれば使用、なければデフォルト
+            custom_start = row.get('開始順位', DEFAULT_START_RANK)
+            custom_end = row.get('終了順位', DEFAULT_END_RANK)
+
+            # 進捗表示
+            progress = idx / total_keywords
+            overall_progress.progress(progress)
+            current_task.markdown(f"**[{idx}/{total_keywords}] {keyword} を取得中...**")
+
+            logs.append(f"\n[{datetime.now().strftime('%H:%M:%S')}] {'='*60}")
+            logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] [{idx}/{total_keywords}] {keyword} の取得を開始")
+            logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 取得範囲: {custom_start}位 〜 {custom_end}位")
+            log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)  # 最新50行のみ表示
 
             # スクレイピング実行
-            scraper = GoogleMapsScraper(
-                start_rank=start_rank,
-                end_rank=end_rank,
-                min_wait=min_wait,
-                max_wait=max_wait
-            )
+            results = asyncio.run(scraper.scrape_google_maps(
+                keyword,
+                custom_start,
+                custom_end,
+                lambda msg: logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}") or log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)
+            ))
 
-            for idx, row in enumerate(keywords_data, 1):
-                area = row.get('エリア', '')
-                category = row.get('業種', '')
-                keyword = f"{area} {category}"
+            all_results.extend(results)
+            logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ {keyword}: {len(results)}件取得完了")
+            log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)
 
-                # カスタム範囲があれば使用
-                custom_start = row.get('開始順位', start_rank)
-                custom_end = row.get('終了順位', end_rank)
-
-                # 進捗表示
-                progress = idx / total_keywords
-                overall_progress.progress(progress)
-                current_task.markdown(f"**[{idx}/{total_keywords}] {keyword} を取得中...**")
-
-                logs.append(f"\n[{datetime.now().strftime('%H:%M:%S')}] {'='*60}")
-                logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] [{idx}/{total_keywords}] {keyword} の取得を開始")
-                logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 取得範囲: {custom_start}位 〜 {custom_end}位")
-                log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)  # 最新50行のみ表示
-
-                # スクレイピング実行
-                results = asyncio.run(scraper.scrape_google_maps(
-                    keyword,
-                    custom_start,
-                    custom_end,
-                    lambda msg: logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}") or log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)
-                ))
-
-                all_results.extend(results)
-                logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ {keyword}: {len(results)}件取得完了")
+            # 次のキーワードまで待機
+            if idx < total_keywords:
+                import random
+                wait_time = random.uniform(5, 10)
+                logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 次の検索まで {wait_time:.1f}秒 待機中...")
                 log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)
-
-                # 次のキーワードまで待機
-                if idx < total_keywords:
-                    import random
-                    wait_time = random.uniform(5, 10)
-                    logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 次の検索まで {wait_time:.1f}秒 待機中...")
-                    log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)
-                    import time
-                    time.sleep(wait_time)
+                import time
+                time.sleep(wait_time)
 
             # 完了
             overall_progress.progress(1.0)

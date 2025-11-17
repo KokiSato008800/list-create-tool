@@ -72,9 +72,30 @@ class SheetsHandler:
             title = f'店舗リスト_{timestamp}'
 
         # 新しいスプレッドシート作成
+        # target_folder_idが指定されている場合は、Drive APIを直接使用してフォルダ内に作成
         if self.target_folder_id:
-            # 指定されたフォルダ内に作成
-            spreadsheet = client.create(title, folder_id=self.target_folder_id)
+            # Drive API を使用して直接フォルダ内に作成
+            from googleapiclient.discovery import build
+            from googleapiclient.http import MediaInMemoryUpload
+
+            # Drive サービスを構築
+            drive_service = build('drive', 'v3', credentials=client.auth)
+
+            # スプレッドシートのメタデータ
+            file_metadata = {
+                'name': title,
+                'mimeType': 'application/vnd.google-apps.spreadsheet',
+                'parents': [self.target_folder_id]  # フォルダIDを親として指定
+            }
+
+            # 空のスプレッドシートを作成
+            file = drive_service.files().create(
+                body=file_metadata,
+                fields='id'
+            ).execute()
+
+            spreadsheet_id = file.get('id')
+            spreadsheet = client.open_by_key(spreadsheet_id)
         else:
             # デフォルト（ルートに作成）
             spreadsheet = client.create(title)

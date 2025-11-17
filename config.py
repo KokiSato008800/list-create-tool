@@ -55,6 +55,19 @@ def get_target_folder_id():
     # デフォルト値（ローカル開発用）
     return None
 
+def get_input_sheet_url():
+    """入力用スプレッドシートURLを取得"""
+    # Streamlit Secretsから取得
+    if hasattr(st, 'secrets') and 'input_sheet_url' in st.secrets:
+        return st.secrets['input_sheet_url']
+
+    # 環境変数から取得
+    if 'INPUT_SHEET_URL' in os.environ:
+        return os.environ['INPUT_SHEET_URL']
+
+    # デフォルト値（ローカル開発用）
+    return "https://docs.google.com/spreadsheets/d/13zuvTUTv3wgBcRVeko4CXp4u6WaChRfcQkEPrF92Vb8/edit?gid=0#gid=0"
+
 # デフォルト設定
 DEFAULT_START_RANK = 41
 DEFAULT_END_RANK = 200
