@@ -95,14 +95,29 @@ class GoogleMapsScraper:
 
                 # 店舗名（必須）
                 try:
-                    name_element = await page.wait_for_selector('h1', timeout=self.TIMEOUT_ELEMENT)
+                    # Google Mapsの店舗名は h1 タグにある
+                    # 複数の h1 がある場合があるので、より具体的なセレクタを使用
+                    name_element = await page.wait_for_selector('div[role="main"] h1', timeout=self.TIMEOUT_ELEMENT)
                     name = await name_element.inner_text()
+                    name = name.strip()  # 前後の空白を削除
                 except:
-                    name = ""
+                    # フォールバック: h1 タグを直接取得
+                    try:
+                        name_elements = await page.query_selector_all('h1')
+                        name = ""
+                        for elem in name_elements:
+                            text = await elem.inner_text()
+                            text = text.strip()
+                            # 「結果」や空文字列ではないものを店舗名とする
+                            if text and text != "結果" and text != "Results":
+                                name = text
+                                break
+                    except:
+                        name = ""
 
-                if not name:  # 店舗名がない場合はスキップ
+                if not name or name == "結果" or name == "Results":  # 店舗名がない、または「結果」の場合はスキップ
                     if log_callback:
-                        log_callback(f"  ⚠️ ランク{rank}: 店舗名取得失敗")
+                        log_callback(f"  ⚠️ ランク{rank}: 店舗名取得失敗（取得値: '{name}'）")
                     if attempt < max_retries - 1:
                         await asyncio.sleep(2)
                         continue
