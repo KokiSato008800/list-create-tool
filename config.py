@@ -42,6 +42,19 @@ def get_owner_email():
     # デフォルト値（ローカル開発用）
     return None
 
+def get_target_folder_id():
+    """保存先フォルダIDを取得"""
+    # Streamlit Secretsから取得
+    if hasattr(st, 'secrets') and 'target_folder_id' in st.secrets:
+        return st.secrets['target_folder_id']
+
+    # 環境変数から取得
+    if 'TARGET_FOLDER_ID' in os.environ:
+        return os.environ['TARGET_FOLDER_ID']
+
+    # デフォルト値（ローカル開発用）
+    return None
+
 # デフォルト設定
 DEFAULT_START_RANK = 41
 DEFAULT_END_RANK = 200

@@ -6,14 +6,16 @@ from datetime import datetime
 class SheetsHandler:
     """Google Sheets操作クラス"""
 
-    def __init__(self, credentials_json, owner_email=None):
+    def __init__(self, credentials_json, owner_email=None, target_folder_id=None):
         """
         Args:
             credentials_json (dict): サービスアカウントの認証情報（JSON形式）
             owner_email (str, optional): スプレッドシートの所有者に設定するメールアドレス
+            target_folder_id (str, optional): スプレッドシートを保存するフォルダID
         """
         self.credentials_json = credentials_json
         self.owner_email = owner_email
+        self.target_folder_id = target_folder_id
         self.client = None
 
     def authenticate(self):
@@ -70,7 +72,13 @@ class SheetsHandler:
             title = f'店舗リスト_{timestamp}'
 
         # 新しいスプレッドシート作成
-        spreadsheet = client.create(title)
+        if self.target_folder_id:
+            # 指定されたフォルダ内に作成
+            spreadsheet = client.create(title, folder_id=self.target_folder_id)
+        else:
+            # デフォルト（ルートに作成）
+            spreadsheet = client.create(title)
+
         worksheet = spreadsheet.sheet1
 
         # DataFrameに変換

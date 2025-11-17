@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 from scraper import GoogleMapsScraper
 from sheets_handler import SheetsHandler
-from config import get_credentials, get_owner_email
+from config import get_credentials, get_owner_email, get_target_folder_id
 
 # ページ設定
 st.set_page_config(
@@ -117,7 +117,8 @@ if st.button("🚀 データ取得開始", type="primary", use_container_width=T
             # 認証情報を取得
             credentials = get_credentials()
             owner_email = get_owner_email()
-            sheets = SheetsHandler(credentials, owner_email=owner_email)
+            target_folder_id = get_target_folder_id()
+            sheets = SheetsHandler(credentials, owner_email=owner_email, target_folder_id=target_folder_id)
             keywords_data = sheets.get_search_keywords(sheet_url)
 
             total_keywords = len(keywords_data)
