@@ -6,35 +6,57 @@ from datetime import datetime
 class SheetsHandler:
     """Google Sheets操作クラス"""
 
-    def __init__(self, credentials_json, owner_email=None, target_folder_id=None):
+    def __init__(self, credentials_json, owner_email=None, target_folder_id=None, impersonate_email=None):
         """
         Args:
             credentials_json (dict): サービスアカウントの認証情報（JSON形式）
-            owner_email (str, optional): スプレッドシートの所有者に設定するメールアドレス
+            owner_email (str, optional): スプレッドシートの所有者に設定するメールアドレス（非推奨、Domain-Wide Delegationを使用してください）
             target_folder_id (str, optional): スプレッドシートを保存するフォルダID
+            impersonate_email (str, optional): インパーソネートするユーザーのメールアドレス（Domain-Wide Delegation用）
         """
         self.credentials_json = credentials_json
         self.owner_email = owner_email
         self.target_folder_id = target_folder_id
+        self.impersonate_email = impersonate_email
         self.client = None
         self.credentials = None  # 認証情報を保存
+        self.drive_service = None  # Drive APIサービスを保存
 
     def authenticate(self):
-        """Google Sheetsに認証"""
+        """Google Sheetsに認証（Domain-Wide Delegation対応）"""
         if self.client is None:
             scope = [
                 'https://spreadsheets.google.com/feeds',
                 'https://www.googleapis.com/auth/drive'
             ]
 
-            # google-auth を使用
+            # サービスアカウントの認証情報を作成
             self.credentials = Credentials.from_service_account_info(
                 self.credentials_json,
                 scopes=scope
             )
+
+            # Domain-Wide Delegationが有効な場合、ユーザーをインパーソネート
+            if self.impersonate_email:
+                print(f"🔐 Domain-Wide Delegation有効: {self.impersonate_email} としてアクセス")
+                self.credentials = self.credentials.with_subject(self.impersonate_email)
+
             self.client = gspread.authorize(self.credentials)
 
         return self.client
+
+    def _get_drive_service(self):
+        """Drive APIサービスを取得"""
+        if self.drive_service is None:
+            from googleapiclient.discovery import build
+
+            # 認証情報が未作成の場合は作成
+            if self.credentials is None:
+                self.authenticate()
+
+            self.drive_service = build('drive', 'v3', credentials=self.credentials)
+
+        return self.drive_service
 
     def get_search_keywords(self, sheet_url):
         """
@@ -54,6 +76,7 @@ class SheetsHandler:
     def save_to_new_spreadsheet(self, data, title=None):
         """
         取得データを新しいGoogleスプレッドシートに保存
+        Domain-Wide Delegationを使用している場合、ファイルはインパーソネートされたユーザーの所有になります
 
         Args:
             data (list): 保存するデータ（辞書のリスト）
@@ -72,34 +95,40 @@ class SheetsHandler:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             title = f'店舗リスト_{timestamp}'
 
-        # 新しいスプレッドシート作成
-        # target_folder_idが指定されている場合は、Drive APIを直接使用してフォルダ内に作成
+        # フォルダIDが指定されている場合は、Drive APIを使用してフォルダ内に作成
         if self.target_folder_id:
-            # Drive API を使用して直接フォルダ内に作成
-            from googleapiclient.discovery import build
-            from googleapiclient.http import MediaInMemoryUpload
-
-            # Drive サービスを構築（保存された認証情報を使用）
-            drive_service = build('drive', 'v3', credentials=self.credentials)
+            drive_service = self._get_drive_service()
 
             # スプレッドシートのメタデータ
             file_metadata = {
                 'name': title,
                 'mimeType': 'application/vnd.google-apps.spreadsheet',
-                'parents': [self.target_folder_id]  # フォルダIDを親として指定
+                'parents': [self.target_folder_id]
             }
 
             # 空のスプレッドシートを作成
+            # Domain-Wide Delegationが有効な場合、ファイルの所有者はインパーソネートされたユーザーになる
             file = drive_service.files().create(
                 body=file_metadata,
-                fields='id'
+                fields='id',
+                supportsAllDrives=True  # Shared Driveサポート（必要に応じて）
             ).execute()
 
             spreadsheet_id = file.get('id')
             spreadsheet = client.open_by_key(spreadsheet_id)
+
+            if self.impersonate_email:
+                print(f"✅ スプレッドシートを作成: {title}")
+                print(f"   所有者: {self.impersonate_email}")
+                print(f"   保存先フォルダ: {self.target_folder_id}")
         else:
             # デフォルト（ルートに作成）
+            # Domain-Wide Delegationが有効な場合、ファイルの所有者はインパーソネートされたユーザーになる
             spreadsheet = client.create(title)
+
+            if self.impersonate_email:
+                print(f"✅ スプレッドシートを作成: {title}")
+                print(f"   所有者: {self.impersonate_email}")
 
         worksheet = spreadsheet.sheet1
 
@@ -127,26 +156,32 @@ class SheetsHandler:
         # スプレッドシートに書き込み
         worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 
-        # 共有設定
-        try:
-            # オーナーメールアドレスが指定されている場合は、そのユーザーに所有権を譲渡
-            if self.owner_email:
-                # まず編集者として追加
-                spreadsheet.share(self.owner_email, perm_type='user', role='writer', notify=True,
-                                 email_message='店舗リストの取得が完了しました。スプレッドシートをご確認ください。')
-                # 所有権を譲渡（これによりサービスアカウントの容量を使わない）
-                try:
-                    spreadsheet.transfer_ownership(self.owner_email)
-                except:
-                    # 所有権譲渡に失敗した場合でも、編集者権限は付与されている
-                    pass
-            else:
-                # オーナーが指定されていない場合は誰でも閲覧可能に設定
-                spreadsheet.share('', perm_type='anyone', role='reader')
-        except Exception as e:
-            # 共有設定に失敗しても処理を続行
-            print(f"Warning: Failed to share spreadsheet: {e}")
-            pass
+        # 共有設定（Domain-Wide Delegationを使用している場合は所有権譲渡は不要）
+        if not self.impersonate_email:
+            # Domain-Wide Delegationが無効な場合のみ、従来の共有設定を使用（非推奨）
+            try:
+                if self.owner_email:
+                    # まず編集者として追加
+                    spreadsheet.share(self.owner_email, perm_type='user', role='writer', notify=True,
+                                     email_message='店舗リストの取得が完了しました。スプレッドシートをご確認ください。')
+                    # 所有権を譲渡（ほとんどの場合失敗する）
+                    try:
+                        spreadsheet.transfer_ownership(self.owner_email)
+                        print(f"✅ 所有権を譲渡: {self.owner_email}")
+                    except Exception as transfer_error:
+                        # 所有権譲渡に失敗（ドメインが異なる場合は必ず失敗する）
+                        print(f"⚠️ 所有権譲渡に失敗しました: {transfer_error}")
+                        print(f"⚠️ ファイルはサービスアカウントの所有のままです")
+                else:
+                    # オーナーが指定されていない場合は誰でも閲覧可能に設定
+                    spreadsheet.share('', perm_type='anyone', role='reader')
+            except Exception as e:
+                # 共有設定に失敗しても処理を続行
+                print(f"⚠️ 共有設定に失敗: {e}")
+        else:
+            # Domain-Wide Delegationが有効な場合
+            # ファイルは既にインパーソネートされたユーザーの所有なので、所有権譲渡は不要
+            print(f"ℹ️ Domain-Wide Delegation有効のため、所有権譲渡はスキップします")
 
         return spreadsheet.id
 

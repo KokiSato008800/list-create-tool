@@ -68,6 +68,20 @@ def get_input_sheet_url():
     # デフォルト値（ローカル開発用）
     return "https://docs.google.com/spreadsheets/d/13zuvTUTv3wgBcRVeko4CXp4u6WaChRfcQkEPrF92Vb8/edit?gid=0#gid=0"
 
+def get_impersonate_email():
+    """インパーソネートするユーザーのメールアドレスを取得（Domain-Wide Delegation用）"""
+    # Streamlit Secretsから取得
+    if hasattr(st, 'secrets') and 'impersonate_email' in st.secrets:
+        return st.secrets['impersonate_email']
+
+    # 環境変数から取得
+    if 'IMPERSONATE_EMAIL' in os.environ:
+        return os.environ['IMPERSONATE_EMAIL']
+
+    # デフォルト値（ローカル開発用）
+    # Domain-Wide Delegationが設定されていない場合はNoneを返す
+    return None
+
 # デフォルト設定
 DEFAULT_START_RANK = 41
 DEFAULT_END_RANK = 200

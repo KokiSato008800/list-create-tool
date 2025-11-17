@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 from scraper import GoogleMapsScraper
 from sheets_handler import SheetsHandler
-from config import get_credentials, get_owner_email, get_target_folder_id, get_input_sheet_url
+from config import get_credentials, get_owner_email, get_target_folder_id, get_input_sheet_url, get_impersonate_email
 
 # ページ設定
 st.set_page_config(
@@ -77,12 +77,24 @@ if st.button("🚀 データ取得開始", type="primary", use_container_width=T
         credentials = get_credentials()
         owner_email = get_owner_email()
         target_folder_id = get_target_folder_id()
+        impersonate_email = get_impersonate_email()
 
         # Google Sheets接続
         logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] Google Sheetsに接続中...")
+
+        # Domain-Wide Delegationが有効な場合
+        if impersonate_email:
+            logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 🔐 Domain-Wide Delegation有効")
+            logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] インパーソネート: {impersonate_email}")
+
         log_area.text_area("ログ", "\n".join(logs), height=300)
 
-        sheets = SheetsHandler(credentials, owner_email=owner_email, target_folder_id=target_folder_id)
+        sheets = SheetsHandler(
+            credentials,
+            owner_email=owner_email,
+            target_folder_id=target_folder_id,
+            impersonate_email=impersonate_email
+        )
         keywords_data = sheets.get_search_keywords(sheet_url)
 
         total_keywords = len(keywords_data)
