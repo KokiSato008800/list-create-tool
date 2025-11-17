@@ -140,60 +140,60 @@ if st.button("🚀 データ取得開始", type="primary", use_container_width=T
                 import time
                 time.sleep(wait_time)
 
-            # 完了
-            overall_progress.progress(1.0)
-            current_task.markdown("**✅ 全てのキーワードの取得が完了しました**")
+        # 完了
+        overall_progress.progress(1.0)
+        current_task.markdown("**✅ 全てのキーワードの取得が完了しました**")
 
-            logs.append(f"\n[{datetime.now().strftime('%H:%M:%S')}] {'='*60}")
-            logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 全キーワードの取得完了")
-            logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 総取得件数: {len(all_results)}件")
+        logs.append(f"\n[{datetime.now().strftime('%H:%M:%S')}] {'='*60}")
+        logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 全キーワードの取得完了")
+        logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 総取得件数: {len(all_results)}件")
+        log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)
+
+        # 統計表示
+        with stats_container:
+            st.subheader("📊 取得統計")
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+
+            with col_stat1:
+                st.metric("検索キーワード数", f"{total_keywords}件")
+
+            with col_stat2:
+                st.metric("総取得件数", f"{len(all_results)}件")
+
+            with col_stat3:
+                avg_per_keyword = len(all_results) / total_keywords if total_keywords > 0 else 0
+                st.metric("1キーワードあたり平均", f"{avg_per_keyword:.1f}件")
+
+        # スプレッドシートに保存
+        if all_results:
+            logs.append(f"\n[{datetime.now().strftime('%H:%M:%S')}] 新しいスプレッドシートに保存中...")
             log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)
 
-            # 統計表示
-            with stats_container:
-                st.subheader("📊 取得統計")
-                col_stat1, col_stat2, col_stat3 = st.columns(3)
+            spreadsheet_id = sheets.save_to_new_spreadsheet(all_results)
+            spreadsheet_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
 
-                with col_stat1:
-                    st.metric("検索キーワード数", f"{total_keywords}件")
-
-                with col_stat2:
-                    st.metric("総取得件数", f"{len(all_results)}件")
-
-                with col_stat3:
-                    avg_per_keyword = len(all_results) / total_keywords if total_keywords > 0 else 0
-                    st.metric("1キーワードあたり平均", f"{avg_per_keyword:.1f}件")
-
-            # スプレッドシートに保存
-            if all_results:
-                logs.append(f"\n[{datetime.now().strftime('%H:%M:%S')}] 新しいスプレッドシートに保存中...")
-                log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)
-
-                spreadsheet_id = sheets.save_to_new_spreadsheet(all_results)
-                spreadsheet_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
-
-                logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ 保存完了")
-                log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)
-
-                st.success(f"✅ 処理が完了しました！{len(all_results)}件のデータを取得しました。")
-                st.markdown(f"### 📄 結果スプレッドシート")
-                st.markdown(f"[スプレッドシートを開く]({spreadsheet_url})")
-
-                # プレビュー表示
-                with st.expander("📋 取得データのプレビュー（最初の10件）"):
-                    df = pd.DataFrame(all_results[:10])
-                    st.dataframe(df, use_container_width=True)
-            else:
-                st.warning("⚠️ データを取得できませんでした")
-
-        except Exception as e:
-            st.error(f"❌ エラーが発生しました: {str(e)}")
-            logs.append(f"\n[{datetime.now().strftime('%H:%M:%S')}] ❌ エラー: {str(e)}")
+            logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ 保存完了")
             log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)
 
-            import traceback
-            with st.expander("🔍 詳細なエラー情報"):
-                st.code(traceback.format_exc())
+            st.success(f"✅ 処理が完了しました！{len(all_results)}件のデータを取得しました。")
+            st.markdown(f"### 📄 結果スプレッドシート")
+            st.markdown(f"[スプレッドシートを開く]({spreadsheet_url})")
+
+            # プレビュー表示
+            with st.expander("📋 取得データのプレビュー（最初の10件）"):
+                df = pd.DataFrame(all_results[:10])
+                st.dataframe(df, use_container_width=True)
+        else:
+            st.warning("⚠️ データを取得できませんでした")
+
+    except Exception as e:
+        st.error(f"❌ エラーが発生しました: {str(e)}")
+        logs.append(f"\n[{datetime.now().strftime('%H:%M:%S')}] ❌ エラー: {str(e)}")
+        log_area.text_area("ログ", "\n".join(logs[-50:]), height=300)
+
+        import traceback
+        with st.expander("🔍 詳細なエラー情報"):
+            st.code(traceback.format_exc())
 
 # サイドバー
 with st.sidebar:
