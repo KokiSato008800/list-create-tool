@@ -17,6 +17,7 @@ class SheetsHandler:
         self.owner_email = owner_email
         self.target_folder_id = target_folder_id
         self.client = None
+        self.credentials = None  # 認証情報を保存
 
     def authenticate(self):
         """Google Sheetsに認証"""
@@ -27,11 +28,11 @@ class SheetsHandler:
             ]
 
             # google-auth を使用
-            creds = Credentials.from_service_account_info(
+            self.credentials = Credentials.from_service_account_info(
                 self.credentials_json,
                 scopes=scope
             )
-            self.client = gspread.authorize(creds)
+            self.client = gspread.authorize(self.credentials)
 
         return self.client
 
@@ -78,8 +79,8 @@ class SheetsHandler:
             from googleapiclient.discovery import build
             from googleapiclient.http import MediaInMemoryUpload
 
-            # Drive サービスを構築
-            drive_service = build('drive', 'v3', credentials=client.auth)
+            # Drive サービスを構築（保存された認証情報を使用）
+            drive_service = build('drive', 'v3', credentials=self.credentials)
 
             # スプレッドシートのメタデータ
             file_metadata = {
