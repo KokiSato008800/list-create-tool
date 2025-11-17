@@ -104,21 +104,37 @@ class GoogleMapsScraper:
                 try:
                     current_url = page.url
                     import urllib.parse
+
+                    # デバッグ: 現在のURLをログ出力
+                    if log_callback:
+                        log_callback(f"  🔍 現在のURL: {current_url}")
+
                     # URLパターン: https://www.google.com/maps/place/店舗名/...
                     if '/place/' in current_url:
                         place_match = re.search(r'/place/([^/]+)', current_url)
                         if place_match:
                             url_name = urllib.parse.unquote(place_match.group(1).replace('+', ' '))
+                            if log_callback:
+                                log_callback(f"  🔍 URL抽出結果: '{url_name}'")
                             if url_name and url_name != "結果" and url_name != "Results":
                                 name = url_name
                                 if log_callback:
-                                    log_callback(f"  📍 URLから店舗名取得: {name}")
+                                    log_callback(f"  ✅ URLから店舗名取得成功: {name}")
+                        else:
+                            if log_callback:
+                                log_callback(f"  ⚠️ URLパターンマッチ失敗")
+                    else:
+                        if log_callback:
+                            log_callback(f"  ⚠️ URLに /place/ が含まれていません")
                 except Exception as e:
                     if log_callback:
-                        log_callback(f"  ⚠️ URL抽出エラー: {e}")
+                        log_callback(f"  ❌ URL抽出エラー: {e}")
 
                 # 方法2: 複数のCSSセレクタで取得
                 if not name:
+                    if log_callback:
+                        log_callback(f"  🔍 セレクタでの取得を開始...")
+
                     selectors = [
                         'h1.DUwDvf.fontHeadlineLarge',  # 最新のセレクタ
                         '.x3AX1-LfntMc-header-title-title span',
@@ -136,13 +152,17 @@ class GoogleMapsScraper:
                             if name_element:
                                 text = await name_element.inner_text()
                                 text = text.strip()
+                                if log_callback:
+                                    log_callback(f"  🔍 {selector} -> '{text}'")
                                 # 無効なテキストをフィルタリング
                                 if text and text not in ["結果", "Results", "Google マップ", "Google Maps"]:
                                     name = text
                                     if log_callback:
-                                        log_callback(f"  📍 セレクタから取得: {selector} -> {name}")
+                                        log_callback(f"  ✅ セレクタから取得成功: {selector} -> {name}")
                                     break
-                        except:
+                        except Exception as e:
+                            if log_callback:
+                                log_callback(f"  ⚠️ {selector} 失敗: {str(e)[:50]}")
                             continue
 
                 # 方法3: すべてのh1を走査（最終手段）
