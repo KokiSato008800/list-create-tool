@@ -339,15 +339,18 @@ class GoogleMapsScraper:
             page.set_default_timeout(self.TIMEOUT_ELEMENT)
 
             try:
-                # Googleマップにアクセス（リトライ付き）
+                # Googleマップに検索URLで直接アクセス（リトライ付き）
                 if log_callback:
                     log_callback("Googleマップにアクセス中...")
+
+                import urllib.parse
+                search_url = f'https://www.google.com/maps/search/{urllib.parse.quote(keyword)}'
 
                 max_retries = 5
                 for attempt in range(max_retries):
                     try:
                         await page.goto(
-                            'https://www.google.com/maps',
+                            search_url,
                             wait_until='domcontentloaded',
                             timeout=self.TIMEOUT_PAGE_LOAD
                         )
@@ -364,17 +367,11 @@ class GoogleMapsScraper:
 
                 await self.random_wait()
 
-                # 検索ボックスに入力
                 if log_callback:
                     log_callback(f"'{keyword}' を検索中...")
 
-                search_box = await page.wait_for_selector('input#searchboxinput', timeout=self.TIMEOUT_SEARCH)
-                await search_box.fill(keyword)
-                await self.random_wait()
-
-                # 検索実行
-                await page.keyboard.press('Enter')
-                await page.wait_for_timeout(5000)  # 検索結果の読み込み待機
+                # 検索結果の読み込み待機
+                await page.wait_for_timeout(5000)
 
                 if log_callback:
                     log_callback("✓ 検索完了")
